@@ -25,6 +25,7 @@ def get_video_info(youtube_url):
         'ignoreerrors': False,
         'no_color': True,
         'cookiefile': 'youtube_cookies.txt', # アップロードしたファイル名
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         return ydl.extract_info(youtube_url, download=False)
