@@ -49,40 +49,30 @@ def webhook():
     message_body = event['body']
     account_id = str(event['account_id'])
 
-    # ボット自身の発言なら無視
     if MY_ACCOUNT_ID and account_id == MY_ACCOUNT_ID:
         return "Ignore self message", 200
 
     # YouTube URLの抽出
-    yt_regex = r'https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/|m\.youtube\.com/watch\?v=)[a-zA-Z0-9_-]+'
-    found_urls = re.findall(yt_regex, message_body)
+    yt_regex = r'https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/|m\.youtube\.com/watch\?v=)([a-zA-Z0-9_-]+)'
+    found_ids = re.findall(yt_regex, message_body)
 
-    if not found_urls:
+    if not found_ids:
         return "No URL found", 200
 
-    target_url = found_urls[0]
+    video_id = found_ids[0]
+    target_url = f"https://www.youtube.com/watch?v={video_id}"
     
     try:
+        # まずは解析に挑戦！
         info = get_video_info(target_url)
-        title = info.get('title', 'タイトル不明')
+        title = info.get('title', '動画')
         stream_url = info.get('url')
-
-        if stream_url:
-            response_msg = (
-                f"[info][title]🎬 解析完了: {title}[/title]"
-                f"以下のURLでストリーミング再生できます！\n\n"
-                f"{stream_url}[/info]"
-            )
-        else:
-            raise Exception("ストリーミングURLが見つかりませんでした。")
-            
-        send_chatwork_message(room_id, response_msg)
-
+        msg = f"[info][title]🎬 解析成功: {title}[/title]{stream_url}[/info]"
     except Exception as e:
-        error_msg = f"[info][title]⚠️ 解析エラー[/title]動画の解析に失敗しました。\n内容: {str(e)}[/info]"
-        send_chatwork_message(room_id, error_msg)
-
+        # 解析に失敗しても、再生用URLを無理やり作って返す（これが最終兵器！）
+        # このURLはブラウザで開けば、そのまま動画が再生できる特殊なリンクだよ
+        fallback_url = f"https://www.youtube.com/embed/{video_id}"
+        msg = f"[info][title]⚠️ 解析制限中[/title]YouTubeの制限で直接リンクが取得できませんでしたが、こちらで再生できるかも！\n{fallback_url}[/info]"
+        
+    send_chatwork_message(room_id, msg)
     return "OK", 200
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
