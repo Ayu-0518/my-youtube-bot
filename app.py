@@ -19,7 +19,7 @@ def send_chatwork_message(room_id, text):
     except Exception as e:
         print(f"Message send error: {e}")
 
-def def get_video_info(youtube_url):
+def get_video_info(youtube_url):
     ydl_opts = {
         'format': 'best',
         'quiet': True,
