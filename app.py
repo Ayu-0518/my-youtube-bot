@@ -24,9 +24,7 @@ def get_video_info(youtube_url):
         'nocheckcertificate': True,
         'ignoreerrors': False,
         'no_color': True,
-        # クッキーを読み込む設定（ファイル名が合っていれば有効になる）
         'cookiefile': 'youtube_cookies.txt',
-        # 【重要】YouTubeの新しい制限を回避するための「招待状」
         'youtube_include_dash_manifest': False,
         'extractor_args': {
             'youtube': {
@@ -38,6 +36,7 @@ def get_video_info(youtube_url):
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         return ydl.extract_info(youtube_url, download=False)
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
@@ -69,10 +68,13 @@ def webhook():
         stream_url = info.get('url')
         msg = f"[info][title]🎬 解析成功: {title}[/title]{stream_url}[/info]"
     except Exception as e:
-        # 解析に失敗しても、再生用URLを無理やり作って返す（これが最終兵器！）
-        # このURLはブラウザで開けば、そのまま動画が再生できる特殊なリンクだよ
-        fallback_url = f"https://www.youtube.com/embed/{video_id}"
-        msg = f"[info][title]⚠️ 解析制限中[/title]YouTubeの制限で直接リンクが取得できませんでしたが、こちらで再生できるかも！\n{fallback_url}[/info]"
+        # 解析に失敗した時、ここを通常の再生URLにしました！
+        fallback_url = f"https://www.youtube.com/watch?v={video_id}"
+        msg = f"[info][title]⚠️ 解析制限中[/title]直接リンクは取得できませんでしたが、このリンクから再生できます！\n{fallback_url}[/info]"
         
     send_chatwork_message(room_id, msg)
     return "OK", 200
+
+# ↓ここ！これがないとRenderでうまく動かないことがあります
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
