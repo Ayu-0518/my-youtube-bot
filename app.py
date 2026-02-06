@@ -19,7 +19,7 @@ def send_chatwork_message(room_id, text):
     except Exception as e:
         print(f"Message send error: {e}")
 
-def get_video_info(youtube_url):
+def def get_video_info(youtube_url):
     ydl_opts = {
         'format': 'best',
         'quiet': True,
@@ -27,19 +27,20 @@ def get_video_info(youtube_url):
         'nocheckcertificate': True,
         'ignoreerrors': False,
         'no_color': True,
+        # クッキーがある場合は読み込む
         'cookiefile': 'youtube_cookies.txt',
-        'youtube_include_dash_manifest': False,
+        # ブラウザの種類をさらに詳しく偽装する
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'referer': 'https://www.google.com/',
         'extractor_args': {
             'youtube': {
-                'player_client': ['web', 'mweb'],
+                'player_client': ['android', 'web', 'ios'], # 複数の端末になりすます
                 'skip': ['dash', 'hls']
             }
         },
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         return ydl.extract_info(youtube_url, download=False)
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
