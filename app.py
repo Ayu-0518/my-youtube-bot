@@ -24,6 +24,7 @@ def get_video_info(youtube_url):
         'nocheckcertificate': True,
         'ignoreerrors': False,
         'no_color': True,
+        'cookiefile': 'youtube_cookies.txt', # アップロードしたファイル名
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         return ydl.extract_info(youtube_url, download=False)
