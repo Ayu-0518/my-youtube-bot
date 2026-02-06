@@ -1,4 +1,4 @@
 flask
-git+https://github.com/yt-dlp/yt-dlp.git@master
+yt-dlp
 requests
 gunicorn
