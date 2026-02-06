@@ -48,8 +48,13 @@ def webhook():
     message_body = event['body']
     account_id = str(event['account_id'])
 
-    if MY_ACCOUNT_ID and account_id == MY_ACCOUNT_ID:
+    # 修正後：より確実に自分を無視する
+    if str(account_id) == str(MY_ACCOUNT_ID):
         return "Ignore self message", 200
+
+    # さらに！「解析成功」という文字が含まれていたら無視する（ループ対策）
+    if "解析成功" in message_body or "解析制限中" in message_body:
+        return "Ignore bot's own response", 200
 
     # YouTube URLの抽出
     yt_regex = r'https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/|m\.youtube\.com/watch\?v=)([a-zA-Z0-9_-]+)'
