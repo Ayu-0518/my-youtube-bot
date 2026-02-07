@@ -21,18 +21,19 @@ def send_chatwork_message(room_id, text):
         print(f"Message send error: {e}")
 
 def get_random_search_video(keyword):
-    # yt-dlpを使って、キーワードで検索して1番目の動画情報を取るよ
     ydl_opts = {
         'format': 'best',
         'quiet': True,
         'no_warnings': True,
-        'extract_flat': True, # 動画の中身までは解析せず、タイトルとURLだけ取る
+        'extract_flat': True,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        # 「ytsearch1:キーワード」で検索結果の1件目を取得
-        result = ydl.extract_info(f"ytsearch1:{keyword}", download=False)
-        if 'entries' in result and len(result['entries']) > 0:
-            return result['entries'][0]
+        try:
+            result = ydl.extract_info(f"ytsearch1:{keyword}", download=False)
+            if 'entries' in result and len(result['entries']) > 0:
+                return result['entries'][0]
+        except Exception as e:
+            print(f"Search error: {e}")
         return None
 
 @app.route('/webhook', methods=['POST'])
@@ -46,41 +47,36 @@ def webhook():
     message_body = event['body']
     account_id = str(event['account_id'])
 
+    # --- 🔥 【超重要】無限ループ防止ガード ---
+    
+    # ガード1: 自分のアカウントIDからのメッセージは即終了
     if MY_ACCOUNT_ID and account_id == str(MY_ACCOUNT_ID):
-        return "OK", 200
-    if "3文字ガチャ" in message_body:
+        print(f"Ignore: Message from self ({account_id})")
         return "OK", 200
 
-    # ⭐【新機能】3文字ランダム検索
-    if "暇！" in message_body:
-        # 「あ」〜「ん」のリストを作る
+    # ガード2: メッセージ内にボットが使う定型文が入っていたら終了
+    # これにより、URLが含まれていても解析処理に飛ばなくなるよ
+    stop_words = ["ガチャ", "解析成功", "解析制限中"]
+    if any(word in message_body for word in stop_words):
+        print("Ignore: Bot response pattern detected")
+        return "OK", 200
+
+    # --- ⭐ 「暇！」ガチャ処理 ---
+    if message_body == "暇！":
         hiragana = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん"
-        # 3文字ランダムに選ぶ
         search_word = "".join(random.sample(hiragana, k=3))
         
-        # 検索実行
         video = get_random_search_video(search_word)
         
         if video:
             title = video.get('title', '不明な動画')
             video_url = f"https://www.youtube.com/watch?v={video['id']}"
-            msg = f"[info][title]🎰 3文字検索ガチャ[/title]キーワード：『{search_word}』でヒットしたよ！\n\n【{title}】\n{video_url}[/info]"
+            msg = f"[info][title]🎰 3文字検索ガチャ[/title]キーワード：『{search_word}』で見つけたよ！\n\n【{title}】\n{video_url}[/info]"
         else:
-            msg = f"『{search_word}』で検索したけど何も出なかったよ。もう一回引いてみて！"
+            msg = f"[info][title]🎰 3文字検索ガチャ[/title]『{search_word}』で探したけど見つからなかった...もう一回引いてみて！[/info]"
 
         send_chatwork_message(room_id, msg)
         return "OK", 200
 
-    # --- 通常のURL反応 ---
-    yt_regex = r'https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/|m\.youtube\.com/watch\?v=)([a-zA-Z0-9_-]+)'
-    found_ids = re.findall(yt_regex, message_body)
-    if found_ids:
-        video_id = found_ids[0]
-        msg = f"https://www.youtube.com/watch?v={video_id}"
-        send_chatwork_message(room_id, msg)
-
-    return "OK", 200
-
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    # --- 📺 通常のYouTube URL抽出処理 ---
+    yt_regex = r'https?://(?:www\
