@@ -1,8 +1,8 @@
 import os
 import re
-import yt_dlp
 import requests
-import random  # ← 追加：ランダム機能を使うために必要
+import random
+import string
 from flask import Flask, request
 
 app = Flask(__name__)
@@ -20,26 +20,12 @@ def send_chatwork_message(room_id, text):
     except Exception as e:
         print(f"Message send error: {e}")
 
-def get_video_info(youtube_url):
-    ydl_opts = {
-        'format': 'best',
-        'quiet': True,
-        'no_warnings': True,
-        'nocheckcertificate': True,
-        'ignoreerrors': False,
-        'no_color': True,
-        'cookiefile': 'youtube_cookies.txt',
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        'referer': 'https://www.google.com/',
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'web', 'ios'],
-                'skip': ['dash', 'hls']
-            }
-        },
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        return ydl.extract_info(youtube_url, download=False)
+# ⭐ 動画が存在するかチェックする魔法の関数
+def check_video_exists(video_id):
+    # oEmbedという仕組みを使って、動画が存在するか確認するよ
+    check_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}"
+    response = requests.get(check_url)
+    return response.status_code == 200
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -52,45 +38,40 @@ def webhook():
     message_body = event['body']
     account_id = str(event['account_id'])
 
-    # --- 無限ループ防止ガード ---
     if MY_ACCOUNT_ID and account_id == str(MY_ACCOUNT_ID):
         return "OK", 200
-    if "解析成功" in message_body or "解析制限中" in message_body or "世界の動画" in message_body:
+    if "動画IDガチャ" in message_body:
         return "OK", 200
 
-    # ⭐【新機能】「暇！」に反応するルール
+    # ⭐【超進化】「暇！」で再抽選するルール
     if "暇！" in message_body:
-        # ランダムな検索ワード（ここを好きな言葉に変えてもOK！）
-        keywords = ["sky", "travel", "cooking", "cat", "japan", "science", "piano", "funny", "vlog", "nature"]
-        word = random.choice(keywords)
+        characters = string.ascii_letters + string.digits + "-_"
+        found_id = None
         
-        # YouTubeの検索結果画面のURL（動画じゃなくて「検索結果」に飛ばすことで確実に動くよ！）
-        search_url = f"https://www.youtube.com/results?search_query={word}"
+        # 最大10回まで「当たり」を探して回す！
+        for i in range(10):
+            temp_id = ''.join(random.choice(characters) for _ in range(11))
+            if check_video_exists(temp_id):
+                found_id = temp_id
+                break # 当たりが出たらループ終了！
         
-        msg = f"[info][title]🌍 世界の動画ガチャ[/title]暇なんだね！じゃあ『{word}』で検索したこの結果から気になる動画を探してみて！\n{search_url}[/info]"
+        if found_id:
+            msg = f"[info][title]🎰 動画IDガチャ (当たり！)[/title]ボットが再抽選して、実在する動画を見つけたよ！\nhttps://www.youtube.com/watch?v={found_id}[/info]"
+        else:
+            msg = f"[info][title]🎰 動画IDガチャ (ハズレ...)[/title]10回抽選したけど、実在する動画は見つからなかったよ。もう一回「暇！」って言ってみて！[/info]"
+            
         send_chatwork_message(room_id, msg)
         return "OK", 200
 
-    # --- YouTube URLの抽出 (通常の処理) ---
+    # --- 以下、通常のURL反応 ---
     yt_regex = r'https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/|m\.youtube\.com/watch\?v=)([a-zA-Z0-9_-]+)'
     found_ids = re.findall(yt_regex, message_body)
-
-    if not found_ids:
-        return "No URL found", 200
-
-    video_id = found_ids[0]
-    target_url = f"https://www.youtube.com/watch?v={video_id}"
-    
-    try:
-        info = get_video_info(target_url)
-        title = info.get('title', '動画')
-        stream_url = info.get('url')
-        msg = f"[info][title]🎬 解析成功: {title}[/title]{stream_url}[/info]"
-    except Exception as e:
+    if found_ids:
+        video_id = found_ids[0]
         fallback_url = f"https://www.youtube.com/watch?v={video_id}"
-        msg = f"[info][title]⚠️ 解析制限中[/title]直接リンクは取得できませんでしたが、こちらから再生できます！\n{fallback_url}[/info]"
-        
-    send_chatwork_message(room_id, msg)
+        msg = f"[info][title]📺 動画リンク[/title]{fallback_url}[/info]"
+        send_chatwork_message(room_id, msg)
+
     return "OK", 200
 
 if __name__ == '__main__':
