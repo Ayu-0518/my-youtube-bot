@@ -56,7 +56,7 @@ def webhook():
 
     # ガード2: メッセージ内にボットが使う定型文が入っていたら終了
     # これにより、URLが含まれていても解析処理に飛ばなくなるよ
-    stop_words = ["ガチャ", "解析成功", "解析制限中"]
+    stop_words = ["キーワード", "解析成功", "解析制限中"]
     if any(word in message_body for word in stop_words):
         print("Ignore: Bot response pattern detected")
         return "OK", 200
