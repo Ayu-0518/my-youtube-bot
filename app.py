@@ -1,8 +1,8 @@
 import os
 import re
+import yt_dlp
 import requests
 import random
-import string
 from flask import Flask, request
 
 app = Flask(__name__)
@@ -20,12 +20,20 @@ def send_chatwork_message(room_id, text):
     except Exception as e:
         print(f"Message send error: {e}")
 
-# ⭐ 動画が存在するかチェックする魔法の関数
-def check_video_exists(video_id):
-    # oEmbedという仕組みを使って、動画が存在するか確認するよ
-    check_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}"
-    response = requests.get(check_url)
-    return response.status_code == 200
+def get_random_search_video(keyword):
+    # yt-dlpを使って、キーワードで検索して1番目の動画情報を取るよ
+    ydl_opts = {
+        'format': 'best',
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': True, # 動画の中身までは解析せず、タイトルとURLだけ取る
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        # 「ytsearch1:キーワード」で検索結果の1件目を取得
+        result = ydl.extract_info(f"ytsearch1:{keyword}", download=False)
+        if 'entries' in result and len(result['entries']) > 0:
+            return result['entries'][0]
+        return None
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -40,36 +48,35 @@ def webhook():
 
     if MY_ACCOUNT_ID and account_id == str(MY_ACCOUNT_ID):
         return "OK", 200
-    if "動画IDガチャ" in message_body:
+    if "3文字ガチャ" in message_body:
         return "OK", 200
 
-    # ⭐【超進化】「暇！」で再抽選するルール
+    # ⭐【新機能】3文字ランダム検索
     if "暇！" in message_body:
-        characters = string.ascii_letters + string.digits + "-_"
-        found_id = None
+        # 「あ」〜「ん」のリストを作る
+        hiragana = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん"
+        # 3文字ランダムに選ぶ
+        search_word = "".join(random.sample(hiragana, k=3))
         
-        # 最大10回まで「当たり」を探して回す！
-        for i in range(10):
-            temp_id = ''.join(random.choice(characters) for _ in range(11))
-            if check_video_exists(temp_id):
-                found_id = temp_id
-                break # 当たりが出たらループ終了！
+        # 検索実行
+        video = get_random_search_video(search_word)
         
-        if found_id:
-            msg = f"[info][title]🎰 動画IDガチャ (当たり！)[/title]ボットが再抽選して、実在する動画を見つけたよ！\nhttps://www.youtube.com/watch?v={found_id}[/info]"
+        if video:
+            title = video.get('title', '不明な動画')
+            video_url = f"https://www.youtube.com/watch?v={video['id']}"
+            msg = f"[info][title]🎰 3文字検索ガチャ[/title]キーワード：『{search_word}』でヒットしたよ！\n\n【{title}】\n{video_url}[/info]"
         else:
-            msg = f"[info][title]🎰 動画IDガチャ (ハズレ...)[/title]10回抽選したけど、実在する動画は見つからなかったよ。もう一回「暇！」って言ってみて！[/info]"
-            
+            msg = f"『{search_word}』で検索したけど何も出なかったよ。もう一回引いてみて！"
+
         send_chatwork_message(room_id, msg)
         return "OK", 200
 
-    # --- 以下、通常のURL反応 ---
+    # --- 通常のURL反応 ---
     yt_regex = r'https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/|m\.youtube\.com/watch\?v=)([a-zA-Z0-9_-]+)'
     found_ids = re.findall(yt_regex, message_body)
     if found_ids:
         video_id = found_ids[0]
-        fallback_url = f"https://www.youtube.com/watch?v={video_id}"
-        msg = f"[info][title]📺 動画リンク[/title]{fallback_url}[/info]"
+        msg = f"https://www.youtube.com/watch?v={video_id}"
         send_chatwork_message(room_id, msg)
 
     return "OK", 200
