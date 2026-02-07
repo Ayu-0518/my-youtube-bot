@@ -29,6 +29,7 @@ def get_random_search_video(keyword):
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
+            # 検索結果の1件目を取得
             result = ydl.extract_info(f"ytsearch1:{keyword}", download=False)
             if 'entries' in result and len(result['entries']) > 0:
                 return result['entries'][0]
@@ -47,18 +48,15 @@ def webhook():
     message_body = event['body']
     account_id = str(event['account_id'])
 
-    # --- 🔥 【超重要】無限ループ防止ガード ---
+    # --- 🔥 無限ループ防止ガード ---
     
-    # ガード1: 自分のアカウントIDからのメッセージは即終了
+    # ガード1: 自分のアカウントIDなら無視
     if MY_ACCOUNT_ID and account_id == str(MY_ACCOUNT_ID):
-        print(f"Ignore: Message from self ({account_id})")
         return "OK", 200
 
-    # ガード2: メッセージ内にボットが使う定型文が入っていたら終了
-    # これにより、URLが含まれていても解析処理に飛ばなくなるよ
-    stop_words = ["キーワード", "解析成功", "解析制限中"]
+    # ガード2: ボット自身の定型文が含まれていたら無視
+    stop_words = ["ガチャ", "解析成功", "解析制限中", "動画リンク"]
     if any(word in message_body for word in stop_words):
-        print("Ignore: Bot response pattern detected")
         return "OK", 200
 
     # --- ⭐ 「暇！」ガチャ処理 ---
@@ -73,10 +71,24 @@ def webhook():
             video_url = f"https://www.youtube.com/watch?v={video['id']}"
             msg = f"[info][title]🎰 3文字検索ガチャ[/title]キーワード：『{search_word}』で見つけたよ！\n\n【{title}】\n{video_url}[/info]"
         else:
-            msg = f"[info][title]🎰 3文字検索ガチャ[/title]『{search_word}』で探したけど見つからなかった...もう一回引いてみて！[/info]"
+            msg = f"[info][title]🎰 3文字検索ガチャ[/title]『{search_word}』で見つからなかった...もう一回引いてみて！[/info]"
 
         send_chatwork_message(room_id, msg)
         return "OK", 200
 
     # --- 📺 通常のYouTube URL抽出処理 ---
-    yt_regex = r'https?://(?:www\
+    # ここが切れてた部分だよ！しっかり閉じました！
+    yt_regex = r'https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/|m\.youtube\.com/watch\?v=)([a-zA-Z0-9_-]+)'
+    found_ids = re.findall(yt_regex, message_body)
+
+    if found_ids:
+        video_id = found_ids[0]
+        fallback_url = f"https://www.youtube.com/watch?v={video_id}"
+        msg = f"[info][title]📺 動画リンク[/title]どうぞ！\n{fallback_url}[/info]"
+        send_chatwork_message(room_id, msg)
+
+    return "OK", 200
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
